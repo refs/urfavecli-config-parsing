@@ -1,2 +1,5 @@
+proxy:
+  service:
+    address: "2. config-file-struct"
+    port: "2. config-file-struct"
 test: 42
-test_two: alex
