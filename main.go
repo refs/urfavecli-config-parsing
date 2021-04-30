@@ -4,8 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-
-	"github.com/imdario/mergo"
+	"strings"
 
 	"github.com/go-yaml/yaml"
 	"github.com/urfave/cli/v2"
@@ -48,8 +47,11 @@ func main() {
 			Value:       "3. default-value-flag-declaration",
 			Destination: &cfg.Proxy.Address,
 		},
+		&cli.StringSliceFlag{
+			Name: "patch",
+		},
 		&cli.StringFlag{
-			Name: "load",
+			Name: "config-file",
 		},
 	}
 
@@ -59,38 +61,25 @@ func main() {
 			return nil
 		},
 		Before: func(c *cli.Context) error {
-			// because urfavecli does not provide with hooks before flags are parsed, and flag parsing is not exported,
-			// emulating viper config parsing unmarshaling requires some hacking. Here we are hijacking the lifecycle by:
-			// 1. remembering the original flags value (after parsing by urfave)
-			// 2. loading config from disk into a struct
-			// 3. re-apply original values to the context. This ensures the correct order in the sense of the flag has already been parsed, by the point we reach the Before method
-			//    the values are meant to be "final", therefore if they have been re-declared in the config file, essentially the config file values are discarded, as the value of the
-			//    flag is set to its original; if, on the other hand, the value was NOT parsed from a flag, but we encounter it in the config file, the value will remain untouched and
-			//    the config struct
-			// preserve the initial values of the flags
-
-			initialFlagValues := map[string]string{}
-			for i := range flags {
-				if flags[i].IsSet() {
-					for j := range flags[i].Names() {
-						initialFlagValues[flags[i].Names()[j]] = c.Value(flags[i].Names()[j]).(string)
+			// by the time we reach Before, flags have already been parsed
+			_ = prettify(cfg)
+			if c.IsSet("config-file") {
+				_ = parseConfig(c.Value("config-file").(string), &cfg)
+				if c.IsSet("patch") {
+					v := c.Value("patch").(cli.StringSlice)
+					for _, v := range v.Value() {
+						if len(strings.Split(v, "=")) != 2 {
+							break
+						}
+						left := strings.Split(v, "=")[0]
+						right := strings.Split(v, "=")[1]
+						if err := c.Set(left, right); err != nil {
+							return err
+						}
 					}
 				}
+				_ = prettify(cfg)
 			}
-
-			merger := Config{}
-			if err := parseConfig(c.String("load"), &merger); err != nil {
-				return err
-			}
-			_ = prettify(merger)
-			_ = prettify(cfg)
-			mergo.Merge(&cfg, merger)
-			_ = prettify(cfg)
-
-			for k, v := range initialFlagValues {
-				_ = c.Set(k, v)
-			}
-
 			return nil
 		},
 		Flags: flags,
