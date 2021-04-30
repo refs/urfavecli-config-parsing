@@ -4,5 +4,8 @@
 #    port: "2. config-file-struct"
 #test: 42
 
-proxy-addr: file-address
-proxy-port: file-port
+proxy-addr: file-address-proxy
+proxy-port: file-port-proxy
+
+ocs-addr: file-address-ocs
+ocs-port: file-port-ocs

@@ -12,17 +12,22 @@ import (
 
 // Service configures a single service
 type Service struct {
-	Address string `yaml:"address"`
-	Port    string `yaml:"port"`
+	Address string
+	Port    string
 }
 
 type Proxy struct {
 	Service `yaml:"service"`
 }
 
+type OCS struct {
+	Service
+}
+
 // Config is a global configuration
 type Config struct {
-	Proxy Proxy `yaml:"proxy"`
+	Proxy Proxy
+	OCS   OCS
 }
 
 /*
@@ -39,7 +44,7 @@ func main() {
 			Name: "config-file",
 		},
 	}
-	flags := []cli.Flag{
+	proxyFlags := []cli.Flag{
 		altsrc.NewStringFlag(&cli.StringFlag{
 			Name:        "proxy-port",
 			EnvVars:     []string{"PROXY_PORT"},
@@ -54,17 +59,40 @@ func main() {
 		}),
 	}
 
+	ocsFlags := []cli.Flag{
+		altsrc.NewStringFlag(&cli.StringFlag{
+			Name:        "ocs-port",
+			EnvVars:     []string{"OCS_PORT"},
+			Value:       "3. default-value-flag-declaration",
+			Destination: &cfg.OCS.Port,
+		}),
+		altsrc.NewStringFlag(&cli.StringFlag{
+			Name:        "ocs-addr",
+			EnvVars:     []string{"OCS_ADDRESS"},
+			Value:       "3. default-value-flag-declaration",
+			Destination: &cfg.OCS.Address,
+		}),
+	}
+
 	app := &cli.App{
 		Action: func(c *cli.Context) error {
 			return prettify(cfg)
 		},
 		Commands: []*cli.Command{
 			{
-				Name:   "server",
-				Flags:  flags,
-				Before: altsrc.InitInputSourceWithContext(flags, altsrc.NewYamlSourceFromFlagFunc("config-file")),
+				Name:   "proxy",
+				Flags:  proxyFlags,
+				Before: altsrc.InitInputSourceWithContext(proxyFlags, altsrc.NewYamlSourceFromFlagFunc("config-file")),
 				Action: func(context *cli.Context) error {
-					return prettify(cfg)
+					return prettify(cfg.Proxy)
+				},
+			},
+			{
+				Name:   "ocs",
+				Flags:  ocsFlags,
+				Before: altsrc.InitInputSourceWithContext(ocsFlags, altsrc.NewYamlSourceFromFlagFunc("config-file")),
+				Action: func(context *cli.Context) error {
+					return prettify(cfg.OCS)
 				},
 			},
 		},
@@ -74,7 +102,7 @@ func main() {
 	app.Run(os.Args)
 }
 
-func prettify(cfg Config) error {
+func prettify(cfg interface{}) error {
 	empJSON, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
